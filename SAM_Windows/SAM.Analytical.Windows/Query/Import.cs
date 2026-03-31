@@ -1,9 +1,14 @@
-﻿using SAM.Core;
+﻿// SPDX-License-Identifier: LGPL-3.0-or-later
+// Copyright (c) 2020–2026 Michal Dengusiak & Jakub Ziolkowski and contributors
+
+using SAM.Core;
 using SAM.Core.Windows.Forms;
 using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using SAM.Geometry.Object.Spatial;
+using SAM.Geometry.Spatial;
 
 namespace SAM.Analytical.Windows
 {
@@ -49,7 +54,7 @@ namespace SAM.Analytical.Windows
                 importOptions = new ImportOptions();
             }
 
-            List<IJSAMObject> jSAMObjects_Open = new List<IJSAMObject>();
+            List<IJSAMObject> jSAMObjects_Open = [];
 
             try
             {
@@ -79,8 +84,8 @@ namespace SAM.Analytical.Windows
                 importOptions = new ImportOptions();
             }
 
-            List<Tuple<string, string, T>> tuples_All = new List<Tuple<string, string, T>>();
-            jSAMObjects = new List<IJSAMObject>();
+            List<Tuple<string, string, T>> tuples_All = [];
+            jSAMObjects = [];
             foreach (IJSAMObject jSAMObject in jSAMObjects_Open)
             {
                 if (jSAMObject == null)
@@ -94,10 +99,8 @@ namespace SAM.Analytical.Windows
                 {
                     adjacencyCluster = (AdjacencyCluster)jSAMObject;
                 }
-                else if (jSAMObject is AnalyticalModel)
+                else if (jSAMObject is AnalyticalModel analyticalModel)
                 {
-                    AnalyticalModel analyticalModel = (AnalyticalModel)jSAMObject;
-
                     List<IMaterial> materials = analyticalModel.MaterialLibrary?.GetMaterials();
                     if (materials != null)
                     {
@@ -159,6 +162,20 @@ namespace SAM.Analytical.Windows
                         }
                     }
 
+                    IEnumerable<ApertureConstruction> apertureConstructions = adjacencyCluster.GetApertureConstructions();
+                    if (apertureConstructions != null)
+                    {
+                        foreach (ApertureConstruction apertureConstruction in apertureConstructions)
+                        {
+                            if (apertureConstruction is T)
+                            {
+                                tuples_All.Add(new Tuple<string, string, T>(typeof(ApertureConstruction).Name, apertureConstruction.Name, (T)(object)apertureConstruction));
+                            }
+
+                            jSAMObjects.Add(apertureConstruction);
+                        }
+                    }
+
                     List<MechanicalSystemType> mechanicalSystemTypes = adjacencyCluster.GetMechanicalSystemTypes<MechanicalSystemType>();
                     if(mechanicalSystemTypes != null)
                     {
@@ -170,6 +187,48 @@ namespace SAM.Analytical.Windows
                             }
 
                             jSAMObjects.Add(mechanicalSystemType);
+                        }
+                    }
+
+                    IEnumerable<Panel> panels = adjacencyCluster.GetPanels();
+                    if (panels != null)
+                    {
+                        foreach (Panel panel in panels)
+                        {
+                            if (panel is T)
+                            {
+                                tuples_All.Add(new Tuple<string, string, T>(typeof(Panel).Name, panel.Name, (T)(object)panel));
+                            }
+
+                            jSAMObjects.Add(panel);
+                        }
+                    }
+
+                    IEnumerable<Aperture> apertures = adjacencyCluster.GetApertures();
+                    if (apertures != null)
+                    {
+                        foreach (Aperture aperture in apertures)
+                        {
+                            if (aperture is T)
+                            {
+                                tuples_All.Add(new Tuple<string, string, T>(typeof(Aperture).Name, aperture.Name, (T)(object)aperture));
+                            }
+
+                            jSAMObjects.Add(aperture);
+                        }
+                    }
+
+                    IEnumerable<Space> spaces = adjacencyCluster.GetSpaces();
+                    if (spaces != null)
+                    {
+                        foreach (Space space in spaces)
+                        {
+                            if (space is T)
+                            {
+                                tuples_All.Add(new Tuple<string, string, T>(typeof(Space).Name, space.Name, (T)(object)space));
+                            }
+
+                            jSAMObjects.Add(space);
                         }
                     }
                 }
@@ -378,7 +437,7 @@ namespace SAM.Analytical.Windows
                 return null;
             }
 
-            HashSet<string> groups = new HashSet<string>();
+            HashSet<string> groups = [];
             tuples_All.ForEach(x => groups.Add(x.Item1));
 
             List<Tuple<string, string, T>> tuples_Selected = tuples_All;
@@ -386,8 +445,8 @@ namespace SAM.Analytical.Windows
             {
                 tuples_Selected = null;
 
-                using (TreeViewForm<Tuple<string, string, T>> treeViewForm = new TreeViewForm<Tuple<string, string, T>>("Select Objects", tuples_All, (Tuple<string, string, T> x) => x.Item2, (Tuple<string, string, T> x) => x.Item1))
-                {
+                using (TreeViewForm<Tuple<string, string, T>> treeViewForm = new TreeViewForm<Tuple<string, string, T>>("Select Objects", tuples_All, (Tuple<string, string, T> x) => x.Item2, (Tuple<string, string, T> x) => x.Item1, x => true))
+                {                   
                     if (groups.Count < 2)
                     {
                         treeViewForm.ExpandAll();
@@ -476,10 +535,11 @@ namespace SAM.Analytical.Windows
                 importOptions = new ImportOptions();
             }
 
-            List<Construction> constructions = new List<Construction>();
-            List<ApertureConstruction> apertureConstructions = new List<ApertureConstruction>();
-            List<InternalCondition> internalConditions = new List<InternalCondition>();
-            using (ProgressForm progressForm = new ProgressForm("Import", jSAMObjects.Count() + 4))
+            List<Construction> constructions = [];
+            List<ApertureConstruction> apertureConstructions = [];
+            List<InternalCondition> internalConditions = [];
+            List<Panel> panels = [];
+            using (ProgressForm progressForm = new ProgressForm("Import", jSAMObjects.Count() + 5))
             {
                 foreach (T jSAMObject in jSAMObjects)
                 {
@@ -513,6 +573,28 @@ namespace SAM.Analytical.Windows
                     else if (jSAMObject is MechanicalSystemType)
                     {
                         adjacencyCluster.AddObject((MechanicalSystemType)(object)jSAMObject);
+                    }
+                    else if (jSAMObject is Aperture aperture)
+                    {
+                        adjacencyCluster.AddAperture(aperture);
+                    }
+
+                    //Added 2026.01.29
+                    else if (jSAMObject is Panel panel)
+                    {
+                        panels.Add(panel);
+                        if(panel.Construction is Construction construction)
+                        {
+                            constructions.Add(construction);
+                        }
+                    }
+                    else if (jSAMObject is Space space)
+                    {
+                        adjacencyCluster.AddObject(space);
+                        if(space.InternalCondition is InternalCondition internalCondition)
+                        {
+                            internalConditions.Add(internalCondition);
+                        }
                     }
                 }
 
@@ -609,6 +691,32 @@ namespace SAM.Analytical.Windows
                     }
                 }
 
+                progressForm.Update("Panels");
+                if (panels != null && panels.Count > 0)
+                {
+                    BoundingBox3D boundingBox3D = panels.BoundingBox3D();
+
+                    string name = Name.Space.Unassigned;
+
+                    List<Space> spaces = adjacencyCluster.GetSpaces();
+                    if (spaces is null || spaces.Count == 0)
+                    {
+                        adjacencyCluster.AddSpace(new(name, null), panels);
+                    }
+                    else
+                    {
+                        Space space = spaces.Find(x => x.Name == name);
+                        if(space == null)
+                        {
+                            adjacencyCluster.AddSpace(new(name, null), panels);
+                        }
+                        else
+                        {
+                            adjacencyCluster.AddSpace(space, panels);
+                        }
+                    }
+                }
+
                 progressForm.Update("Internal Conditions");
 
                 if (internalConditions != null)
@@ -673,6 +781,8 @@ namespace SAM.Analytical.Windows
                         }
                     }
                 }
+
+
             }
 
             analyticalModel = new AnalyticalModel(analyticalModel);
